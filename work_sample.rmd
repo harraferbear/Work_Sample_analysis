@@ -1,0 +1,306 @@
+---
+title: "Work sample Snapshot: Dealing with missing data and try different models"
+author: "Jie Luo"
+date: "3/14/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(message = FALSE)
+```
+
+```{r}
+# Load libraries and the data
+library(tidyverse)
+library(tidymodels)
+library(NHANES)
+library(visdat)
+```
+
+```{r}
+data("NHANES")
+```
+
+## Part 1
+
+```{r}
+# Removed observations that are under 18 years old
+# Split the data into male and female group and we first focus on male
+
+NHANES_male <- NHANES %>% 
+  filter(Age >= 18) %>% 
+  filter(Gender == "male")
+```
+
+
+```{r}
+# Drop study variables, partial demographic variables, and sleepHrsNight
+# The removed variables include: SurveyYr, ID, Gender, from agemonth to homeown, and SleepHrsNight
+drop <- c(1:3,6:16,50)
+NHANES_male1 <- NHANES_male[, -drop]
+head(NHANES_male1)
+```
+
+```{r}
+# visualize the missing data
+par(mfrow=c(1,2))
+vis_miss(NHANES_male1[,1:30])
+vis_miss(NHANES_male1[,31:61])
+```
+
+```{r}
+# Remove variables with over 90% missing data and variables that are not related to male participants
+# Removed varaibels includes: length, headcirc, BMICatUnder20yrs, UrineVol2, UrineFlow2,
+# DiabetesAge, Npregnant, nBabies, Age1stBaby, TVHrdDayChild, CompHrsDaychild, and pregnant
+
+drop2 <- c(4,5,8,24,25,27,33:35,41,42,61)
+NHANES_male2 <- NHANES_male1[, -drop2]
+head(NHANES_male2)
+```
+
+```{r}
+# Run a correlation matrix for numerical data
+
+cor1 <- round(cor(NHANES_male2 %>% select(where(is.numeric)) %>% na.omit()),2)
+```
+
+```{r}
+# Visualize the results in the heat map
+
+library(reshape2)
+mel_cor1 <- melt(cor1)
+```
+
+```{r}
+hm <- ggplot(data = mel_cor1, aes(x=Var1, y=Var2, fill=value))+
+        geom_tile(color = "white")+
+        scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+          midpoint = 0, limit = c(-1,1), space = "Lab", 
+          name="Correlation") +
+        theme_minimal()+ # minimal theme
+        theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+        size = 12, hjust = 1))
+
+print(hm)
+```
+
+```{r}
+
+drop3 <- c(2:4,6,10:15,38,40,42)
+
+NHANES_male3 <- NHANES_male2[,-drop3]
+
+head(NHANES_male3)
+```
+
+From the heat map, we can clearly see that some of the numerical variables highly correlated with one of another. \\
+For example, BMI is higher correlated with weigh and height (BMI = weight/height^2).Thus, I remove height and weight\\
+Also, several measures of blood pressures are also correlated. I only consider keeping BPDiaAve and BPSDiaAve. \\
+On the other hand, the age of first use of smoke is highly correlated with the age of regularly using marijuana and the age of first use of marijuana. Consider big chunks of missing data for the three variables(53.1%, 56.02%, 76.7%), here I chose to removed them at the first place because I think others variables such as smokeNow or RegularMarij are enough to represent the situations of the participants on the habit of using drugs or smoke. If interested, I will include in the future step.\\
+
+
+## Part 2
+
+SmokeNow might be the variable that should be fixed. According to the data description, the SmokeNow is conditional response when the answer to Smoke100 is yes. In other words, SmokeNow will be NA if a participant has not smoked 100 or more cigarettes in their life. Hence, if the answer for smoke100 is no, then SmokeNow should also be no since they have not even smoked 100 or more cigarettes.
+
+```{r}
+NHANES_male4 <- NHANES_male3 %>% 
+  replace_na(list(SmokeNow = "No"))
+```
+
+
+
+```{r}
+library(VIM)
+library(mice)
+library(naniar)
+library(simputation)
+```
+
+
+## Part 3
+
+```{r}
+# Using the same missing value data shown as part 1
+vis_miss(NHANES_male4)
+```
+
+```{r}
+# create the correlation matrix for numerical data for our final selected dataset
+
+cor2 <- round(cor(NHANES_male4 %>% select(where(is.numeric)) %>% na.omit()),2)
+cor2[upper.tri(cor2)] =NA
+mel_cor2 <- melt(cor2, na.rm=TRUE)
+
+hm2 <- ggplot(data = mel_cor2, aes(x=Var1, y=Var2, fill=value))+
+        geom_tile(color = "white")+
+        scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+          midpoint = 0, limit = c(-1,1), space = "Lab", 
+          name="Correlation") +
+        theme_minimal()+
+        theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+        size = 12, hjust = 1)) +
+        geom_text(aes(x=Var1, y=Var2,label=value),color="black", size=2.5)
+
+print(hm2)
+```
+
+
+## Part 4
+
+To deal with missing data, first, I notice that the majority of missting data come from Testosterone, TVHrsDays, and CompHrsDay. Among there three variables, Only Testosterone is numerical. I also see that it is correlated with Age, BMI, DirectChol, and Pulse. So here I hypothsize that there is a linear relationship among them and I want to run a linear model to test it out.
+
+```{r}
+lm1 <- lm(Testosterone~ BMI + DirectChol + Pulse + Age, data=NHANES_male4)
+summary(lm1)
+```
+
+The linear model suggests that all of the selected variables are statistically significant at determining the Testosterone level. Consider the run time of using mice to impute all of the data, here I will use linear model to impute the Testoterone, and use the mice to impute the rest.
+
+
+```{r}
+NHANES_male5 <- NHANES_male4 %>% 
+  impute_lm(Testosterone~ BMI + DirectChol + Pulse + Age)
+```
+
+Next, I will use mice to impute the rest of the missing data
+```{r cachedChunk, cache=TRUE}
+NHANES_mice <- mice(NHANES_male5, seed=256, print=FALSE)
+```
+
+## Part 5
+
+```{r}
+# Extract the imputed data
+mice_imputed <- complete(NHANES_mice)
+```
+
+```{r}
+# splitting the data into train and test set
+set.seed(123)
+
+num<-nrow(mice_imputed)
+
+split <- mice_imputed %>% 
+  initial_split(prop=0.8)
+
+train <- split %>% 
+  training()
+
+test <- split %>% 
+  testing()
+
+list(train, test) %>% 
+  map_int(nrow)
+```
+
+```{r}
+# fit a logistice regression 
+
+library(yardstick)
+
+fit1 <- logistic_reg(mode="classification") %>% 
+  set_engine("glm") %>% 
+  fit(SleepTrouble ~ Testosterone + DaysMentHlthBad + PhysActiveDays, data=train)
+
+pred1_train <- train %>% 
+  select(SleepTrouble) %>% 
+  bind_cols(
+    predict(fit1, new_data = train, type = "class")
+  ) %>% 
+  rename(sleep_log = .pred_class)
+
+pred1_test <- test %>% 
+  select(SleepTrouble) %>% 
+  bind_cols(
+    predict(fit1, new_data = test, type = "class")
+  ) %>% 
+  rename(sleep_log = .pred_class)
+
+```
+
+```{r}
+# Creating a confusion matrix to visualize the result
+
+confusion_log1 <- pred1_train %>% 
+  conf_mat(truth = SleepTrouble, estimate = sleep_log)
+
+confusion_log2 <- pred1_test %>% 
+  conf_mat(truth = SleepTrouble, estimate = sleep_log)
+
+confusion_log1
+
+confusion_log2
+```
+```{r}
+accuracy(pred1_train, SleepTrouble, sleep_log)
+```
+
+```{r}
+accuracy(pred1_test, SleepTrouble, sleep_log)
+```
+
+The accuracy on train set is 78.91% and it is 78.56% on test set. Overall the result is not too bad considering only three variables are chosen. Next, we will look for a better model.
+
+## Part 6
+
+The second model I choose is the decision tree.
+
+```{r}
+library(rpart)
+library(rpart.plot)
+
+tree.fit <- rpart(SleepTrouble ~ ., data = train)
+rpart.plot(tree.fit)
+```
+
+```{r}
+# predicting using train set
+
+pred2.train <- predict(tree.fit, train, type="class")
+
+table_mat1 <- table(pred2.train,train$SleepTrouble)
+table_mat1
+```
+The accuracy is 81.59% on training set
+```{r}
+# predicting using train set
+
+pred2.test <- predict(tree.fit, test, type="class")
+
+table_mat2 <- table(pred2.test,test$SleepTrouble)
+table_mat2
+```
+The accuracy is (553+27)/737 = 78.70% on test set
+
+
+## Part 7
+
+I prefer the decision tree. First of all, the decision tree model gives better accuracy for both train set and test set. Second, the variables that decision tree has chosen make more sense than the three variables I choose for the logistic model. Specifically, it select Age, HealthGen, and DaysPhyhethbad, which I did not consider before.
+
+## Part 8
+
+1. I chose to build different model for male and female, and the previous analysis is for male only. If given more time, I will try to fit another model for female.
+2. For the decision tree model, we see that there is fairly big difference between the accuracy of test set and train set. One thing I will consider is to tune the hyper-parameter, which might include tuning the maximum depth and number of sample a leaf node should have, etc.
+3. For logistic regression, I will consider refit the model with other variables. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
