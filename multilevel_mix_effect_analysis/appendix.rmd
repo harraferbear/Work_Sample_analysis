@@ -1,0 +1,481 @@
+---
+title: 'Appendices:'
+author: "Jie Luo"
+date: "11/30/2020"
+output:
+  pdf_document:
+    toc: yes
+  bookdown::pdf_document2:
+    toc: yes
+  html_document:
+    toc: yes
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+```
+
+## Appendix: Initial Data Import & Exploration {#appendix-1}
+
+Read the data. get a general idea of the variables. Using table and boxplots for each rubric.
+
+```{r}
+library(arm)
+library(lme4)
+library(plyr)
+library(tidyverse)
+```
+
+```{r}
+library(gtsummary)
+rating <- read.csv("ratings.csv")
+```
+
+
+```{r}
+subrating <- rating %>% 
+  drop_na()
+```
+
+First, display the histogram from each rubric. Since for each rubric, only integer 1,2,3, and 4 are given. So, the scores are discrete.
+```{r}
+par(mfrow = c(3,3))
+attach(rating)
+hist(RsrchQ, main = "Research Question")
+hist(CritDes, main = "Critique Design")
+hist(InitEDA, main = "Initial EDA")
+hist(SelMeth, main = "Select Method(s)")
+hist(InterpRes, main = "Interpret Results")
+hist(VisOrg, main = "Visual Organization")
+hist(TxtOrg, main = "Text Organiazation")
+detach()
+```
+
+From the plot, we can see that the distributions for each rubric are a little different from each other. Research question, Initial EDA and visual organization have similar distributions. The rest differs from each other. Respectively, for research question, initial EDA, and visual organization, the most frequent score is 2, then to 3. For Critique Design, the most frequent score is 1, then 2 and 3. As for select Method, the most frequent score is 2 and no one has score as 4. The interpret Results and Text organization have the similar pattern that most frequent scores are 3. Then it comes to 2. 
+
+To conclude, the Rubric Critique Design tends to have low score(majority is 1). The rest of rubrics tend to have the majority of score be 2 or 3. This might suggest the random effect when considering the model selection
+
+
+
+```{r}
+library(arsenal)
+
+table_one <- tableby(Rater ~ RsrchQ + CritDes + InitEDA + SelMeth + InterpRes + VisOrg + TxtOrg, data=rating)
+```         
+          
+                          Table.1 Summary statistics
+
+|              | 1 (N=39)      | 2 (N=39)      | 3 (N=39)      | Total (N=117) | 
+|:------------:|:-------------:|:-------------:|:-------------:|:-------------:|
+|**RsrchQ**    |               |               |               |               | 
+|Mean (SD)     | 2.436 (0.641) | 2.359 (0.628) | 2.256 (0.498) | 2.350 (0.592) | 
+|**CritDes**   |               |               |               |               | 
+|Mean (SD)     | 1.590 (0.715) | 2.132 (0.906) | 1.897 (0.821) | 1.871 (0.840) | 
+|**InitEDA**   |               |               |               |               | 
+|Mean (SD)     | 2.410 (0.715) | 2.564 (0.680) | 2.333 (0.701) | 2.436 (0.700) | 
+|**SelMeth**   |               |               |               |               | 
+|Mean (SD)     | 2.128 (0.339) | 2.128 (0.469) | 1.949 (0.605) | 2.068 (0.486) | 
+|**InterpRes** |               |               |               |               | 
+|Mean (SD)     | 2.718 (0.456) | 2.590 (0.595) | 2.154 (0.630) | 2.487 (0.610) | 
+|**VisOrg**    |               |               |               |               | 
+|Mean (SD)     | 2.395 (0.638) | 2.641 (0.668) | 2.205 (0.656) | 2.414 (0.673) | 
+|**TxtOrg**    |               |               |               |               | 
+|Mean (SD)     | 2.769 (0.583) | 2.590 (0.715) | 2.436 (0.754) | 2.598 (0.696) | 
+
+Table 1 provides the mean and standard deviation for each rubric of each rater and the overall distribution. The fifth column of the table confirms our observation in the histogram that Critique Design has lower score than the other rubric.(Only one that is lower than 2). Moreover, column 1 to 3 refer to each the statistics for each rater. We can see that rater 1 tends to give lower score on Critique Design (1.59 vs 2.132 vs 1.897). Moreover, rater 3 might be more crucial on rubrics Select methods(1.949 vs 2.128 vs 2.128), and Interpret Result(2.154 vs 2.718 vs 2.590). The rest of the rubrics have the similar patterns for each rater, which are Research question, Initial EDA, Visual Organization, and Text Organization.
+
+
+Next, we conduct the same analysis on the subset data where only 13 artifacts are counted
+
+```{r}
+par(mfrow = c(3,3))
+attach(subrating)
+hist(RsrchQ, main = "Research Question")
+hist(CritDes, main = "Critique Design")
+hist(InitEDA, main = "Initial EDA")
+hist(SelMeth, main = "Select Method(s)")
+hist(InterpRes, main = "Interpret Results")
+hist(VisOrg, main = "Visual Organization")
+hist(TxtOrg, main = "Text Organiazation")
+detach()
+```
+Compare this plot with the histogram plot we examine with the full data set, we can see that there is no much difference in terms of the score distribution for each rubric. However, for those 13 artifacts, no one has score 4 on Research question, Critique Design, Initial EDA, and visual organization. But overall, it indicates that this can be representative of the whole set of 91 artifacts.
+
+```{r}
+table_one1 <- tableby(Rater ~ RsrchQ + CritDes + InitEDA + SelMeth + InterpRes + VisOrg + TxtOrg, data=subrating)
+```
+
+                          Table.2 Summary Statistics for 13 Artifacts
+
+|              | 1 (N=13)      | 2 (N=13)      | 3 (N=13)      | Total (N=39)  | 
+|:------------:|:-------------:|:-------------:|:-------------:|:-------------:|
+|**RsrchQ**    |               |               |               |               | 
+|Mean (SD)     | 2.385 (0.506) | 2.154 (0.689) | 2.308 (0.480) | 2.282 (0.560) | 
+|**CritDes**   |               |               |               |               | 
+|Mean (SD)     | 1.615 (0.650) | 1.846 (0.801) | 1.692 (0.751) | 1.718 (0.724) |
+|**InitEDA**   |               |               |               |               | 
+|Mean (SD)     | 2.538 (0.660) | 2.385 (0.506) | 2.231 (0.439) | 2.385 (0.544) | 
+|**SelMeth**   |               |               |               |               | 
+|Mean (SD)     | 2.154 (0.376) | 2.077 (0.494) | 1.923 (0.641) | 2.051 (0.510) | 
+|**InterpRes** |               |               |               |               | 
+|Mean (SD)     | 2.615 (0.506) | 2.615 (0.650) | 2.308 (0.630) | 2.513 (0.601) | 
+|**VisOrg**    |               |               |               |               | 
+|Mean (SD)     | 2.154 (0.555) | 2.462 (0.660) | 2.231 (0.599) | 2.282 (0.605) | 
+|**TxtOrg**    |               |               |               |               | 
+|Mean (SD)     | 2.769 (0.599) | 2.615 (0.650) | 2.615 (0.650) | 2.667 (0.621) | 
+
+
+Similar from last table, after using the 13 artifacts, the Critique Design also has the lowest score among others. For each rater, rater 1 tends to give lowest score on Critique Design than the other two raters. Rater3 also give lower score on Select Method and Visual organization. 
+
+Overall, the subset seems like a reasonable representation for the whole set of 91 artifacts.
+
+
+## Appendix: Analysis on differences among raters {#appendix-2}
+
+Loading tall.csv and focus on 13 artifacts. Changing some variables into factor.
+```{r}
+tall <- read.csv("tall.csv") %>% 
+ drop_na() %>% 
+  filter(Artifact != 5)
+
+tall$Rater <- as.factor(tall$Rater)
+tall$Sex <- as.factor(tall$Sex)
+tall$Artifact <- as.factor(tall$Artifact)
+tall$Rubric <- as.factor(tall$Rubric)
+
+subtall <- tall %>% 
+  filter(Repeated == 1)
+```
+
+
+To find out whether each raters agree on each other for each, we will check the intraclass correlation(ICC) for each rubric. Generally, a high ICC indicates a high correlation. Fitting lmer() for checking icc. ICC is calculated as va(tau) / (var(tau) + var(sigma)
+```{r}
+lmer.1 <- lmer(Rating ~ 1 + (1| Artifact), data=subtall %>% filter(Rubric == "RsrchQ"))
+lmer.2 <- lmer(Rating ~ 1 + (1| Artifact), data=subtall %>% filter(Rubric == "CritDes"))
+lmer.3 <- lmer(Rating ~ 1 + (1| Artifact), data=subtall %>% filter(Rubric == "InitEDA"))
+lmer.4 <- lmer(Rating ~ 1 + (1| Artifact), data=subtall %>% filter(Rubric == "SelMeth"))
+lmer.5 <- lmer(Rating ~ 1 + (1| Artifact), data=subtall %>% filter(Rubric == "InterpRes"))
+lmer.6 <- lmer(Rating ~ 1 + (1| Artifact), data=subtall %>% filter(Rubric == "VisOrg"))
+lmer.7 <- lmer(Rating ~ 1 + (1| Artifact), data=subtall %>% filter(Rubric == "TxtOrg"))
+```
+
+```{r}
+summary(lmer.1)
+```
+
+Reading the var(tau) and var(sigma) from the summary table and calculate the ICC
+```{r}
+icc1 <- 0.06/(0.06+0.26)
+icc1
+```
+We illustrate one example as the example of ICC calculation, the rest of calculation for ICC is conducted in the similar way. Below is the table for the ICC score for each rubric using the subset for the 13 artifacts.
+
+
+                Table 3. ICC Statistics with 13 Artifacts
+                  
+|       | RsrchQ | CritDes | InitEDA | SelMeth | InterpRes | VisOrg | TxtOrg |
+|:-----:|:------:|:-------:|:-------:|:-------:|:---------:|:------:|:------:|
+| ICC   | 0.188  | 0.574   | 0.500   | 0.519   | 0.222     | 0.594  | 0.145  |
+
+Table 3 shows the ICC's for each rubric using subset data. for each column, the top row indicates the name of the rubric. The second row is the respective ICC. From the table, we can see that Critique Design, Initial EDA, Select Methods, and Visual Organization have ICC over 0.5, which indicate a medium agreement among raters. However, Research question, Interpret Results, and Text Organization have lower ICC that are below 0.5. It suggests that raters in those rubrics tend to have low agreement.
+
+
+Next, we run the same thing the the whole data set
+
+```{r}
+
+lmer.8 <- lmer(Rating ~ 1 + (1| Artifact), data=tall %>% filter(Rubric == "RsrchQ"))
+lmer.9 <- lmer(Rating ~ 1 + (1| Artifact), data=tall %>% filter(Rubric == "CritDes"))
+lmer.10 <- lmer(Rating ~ 1 + (1| Artifact), data=tall %>% filter(Rubric == "InitEDA"))
+lmer.11 <- lmer(Rating ~ 1 + (1| Artifact), data=tall %>% filter(Rubric == "SelMeth"))
+lmer.12 <- lmer(Rating ~ 1 + (1| Artifact), data=tall %>% filter(Rubric == "InterpRes"))
+lmer.13 <- lmer(Rating ~ 1 + (1| Artifact), data=tall %>% filter(Rubric == "VisOrg"))
+lmer.14 <- lmer(Rating ~ 1 + (1| Artifact), data=tall %>% filter(Rubric == "TxtOrg"))
+```
+
+Using the same method, we get the ICC with full dataset indicated in the table below.
+
+
+                Table 4. ICC statistics with Full dataset
+                  
+|       | RsrchQ | CritDes | InitEDA | SelMeth | InterpRes | VisOrg | TxtOrg |
+|:-----:|:------:|:-------:|:-------:|:-------:|:---------:|:------:|:------:|
+| ICC   | 0.210  | 0.673   |  0.687  | 0.472   |  0.220    | 0.661  | 0.188  |
+
+Table 4 shows the ICC's for each rubric for the whole dataset tall. We can see that it has the similar pattern as what shows in last table. Research question, Interpret Results, Selected Method, and Text Organization have ICC's lower than 0.5, which suggests that raters on those rubric have low agreement. Critique Design, Initial EDA, visual Organization have ICC's higher between 0.5 and 0.75. It suggest that raters have a medium agreement on those rubric. The only difference from these two tables is that Select Methods change from 0.519 to 0.477. But we think this difference is reasonable after switching to bigger data set.
+
+This disagreement might be an indicator of random effect on the rater variable for further model selection
+
+Next, we makes two way tables for examine which rater differs from others. To do this, we make 2-way table for counts for the rating of each pairs of raters, on each rubric. For each table, we calculate the percentage of observations on the main diagonal. This can be seen as the percent exact agreement between two raters.
+
+```{r}
+rating13 <- rating %>% 
+  filter(Repeated==1)
+```
+
+
+```{r}
+for (i in names(rating13)[7:13]){
+  f1rq <- factor(rating13[rating13$Rater==1,as.character(i)],levels=1:4)
+  f2rq <- factor(rating13[rating13$Rater==2,as.character(i)],levels=1:4)
+  f3rq <- factor(rating13[rating13$Rater==3,as.character(i)],levels=1:4)
+  
+  print(i)
+  
+  table1 <- table(f1rq, f2rq)
+  print(table1)
+  print(sum(diag(table1)) / sum(rowSums(table1)))
+
+  table2 <- table(f1rq,f3rq)
+  print(table2)
+  print(sum(diag(table2)) / sum(rowSums(table2)))
+
+  table3 <- table(f2rq, f3rq)
+  print(table3)
+  print(sum(diag(table3)) / sum(rowSums(table3)))
+  
+  print(" ")
+}
+```
+
+
+ we calculate the agreement rates for each pair of rater in each rubric. Table showns as below
+
+
+                          Table 5. Percent Agreement with Full dataset
+
+|                  | RsrchQ | CritDes | InitEDA | SelMeth | InterpRes | VisOrg | TxtOrg |
+|:----------------:|:------:|:-------:|:-------:|:-------:|:---------:|:------:|:------:|
+| rater1 vs rater2 | 38.5%  | 53.8%   |  69,2%  | 74.4%   |  61.5%    | 53.8%  | 69.2%  |
+| rater1 vs rater3 | 76.9%  | 61.5%   |  53.8%  | 56.4%   |  53.8%    | 76.9%  | 61.5%  |
+| rater2 vs rater3 | 53.8%  | 69.2%   |  84.6%  | 43.5%   |  61.5%    | 76.9%  | 53.8%  |
+
+
+
+## Appendix: Regression Analysis {#appendix-3}
+
+Here we consider the multilevel model since each artifact differs from each other in terms of each rubric, which can be seen as the cluster. On the other hand, from the former analyses, we notice that the rubric and rater can potentially bring the random effects as well. So we start by considering fixed effects to the following models. Then we add potential fixed effects and random effects.
+
+```{r}
+lmer.fit0 <- lmer(Rating ~ (1 + Rubric | Artifact), data=tall,REML = FALSE)
+```
+
+```{r}
+lmer.fit1 <- lmer(Rating ~(0 + Rubric | Artifact), data=tall,REML = FALSE)
+```
+
+```{r}
+anova(lmer.fit0, lmer.fit1)
+```
+Adding random intercept does not improve the model, we will go on with lmer.fit1
+
+```{r}
+summary(lmer.fit1)
+```
+
+
+Next, we add fixed effect Rubric
+
+```{r}
+lmer.fit2 <- lmer(Rating ~ 1 + Rubric + (0 + Rubric | Artifact), data=tall,REML = FALSE)
+```
+
+We then compare lmer.fit1 and lmer.fit2
+```{r}
+anova(lmer.fit1, lmer.fit2)
+```
+Both AIC and BIC prefer lmer.fit2.
+
+Next, we add rater as fixed effect
+
+```{r}
+lmer.fit3 <- lmer(Rating ~ 1 + Rubric + Rater + (0 + Rubric | Artifact), data=tall,REML = FALSE)
+```
+
+```{r}
+anova(lmer.fit2, lmer.fit3)
+```
+
+Both AIC and BIC prefer lmer.fit3
+
+```{r}
+lmer.fit4 <- lmer(Rating ~ 1 + Sex + Rubric + Rater + (0 + Rubric | Artifact), data=tall,REML = FALSE)
+```
+
+
+```{r}
+anova(lmer.fit3,lmer.fit4)
+```
+
+AIC and BIC both slightly prefer lmer.fit4.
+
+```{r}
+lmer.fit5 <- lmer(Rating ~ 1 + Repeated + Sex + Rubric + Rater + (0 + Rubric | Artifact), data=tall,REML = FALSE)
+```
+
+```{r}
+anova(lmer.fit4,lmer.fit5)
+```
+Here AIC and BIC prefer lmer.fit4. Next we add Semester
+
+```{r}
+lmer.fits <- lmer(Rating ~ 1 + Semester + Sex + Rubric + Rater + (0 + Rubric | Artifact), data=tall,REML = FALSE)
+```
+
+```{r}
+anova(lmer.fit4, lmer.fits)
+```
+Even though the AIC slightly prefer lmer.fits, the BIC still prefer lmer.fit4. Here, we still consider fiexed effect shown as lmer.fit4
+
+
+Next we consider interaction term. Since we are interested to find out more about the effect of sex, we consider sex*rubric
+
+```{r}
+lmer.fit6 <- lmer(Rating ~ 1 + Sex*Rubric + Rater + (0 + Rubric | Artifact), data=tall,REML = FALSE)
+```
+
+
+```{r}
+anova(lmer.fit4,lmer.fit6)
+```
+The AIC and BIC still prefer lmer.fit4. Next, we consider rubric*Rater.
+
+```{r}
+lmer.fit7 <- lmer(Rating ~ 1 + Sex + Rubric + Rater + Rubric*Rater + (0 + Rubric | Artifact), data=tall, REML = FALSE)
+```
+
+
+```{r}
+anova(lmer.fit4, lmer.fit7)
+```
+The AIC and BIC prefer lmer.fit7. We can see that AIC for lmer.fit7 is almost 10 lower than AIC for lmer.fit4. Thus, it's worth considering the interaction term.
+
+
+Next, we consider adding random effect. we use the fitLMER.fnc() function to conduct this step. As we discuss above, both Rubric and Rater can bring the random effect. Thus, we will consider them in the following steps.
+
+We consider rater and sex and semester. 
+
+```{r}
+library(LMERConvenienceFunctions)
+lmer.fit8 <- fitLMER.fnc(lmer.fit7, ran.effects=c("(1|Rater)", "(1|Sex)", "(1|Semester)"), method="AIC")
+```
+
+We see that fitLMER.fnc() does not prefer other random effect. Here, we pick model 7 as our final model
+
+```{r}
+summary(lmer.fit7)
+```
+
+```{r}
+#critides
+
+0.49054/(0.49054+0.17981)
+```
+```{r}
+#InitEDA
+0.34174/ (0.34174+0.17981)
+```
+```{r}
+#InterpRes
+0.14808/ (0.14808+0.17981)
+```
+
+```{r}
+#ReschQ
+0.16353/ (0.16353+0.17981)
+```
+
+```{r}
+#Selmeth
+0.07636  / (0.07636  +0.17981)
+```
+```{r}
+#TxtOrg
+0.26350  / (0.26350  +0.17981)
+```
+```{r}
+#Visorg
+0.68256  / (0.68256  +0.17981)
+```
+
+
+                Table 3. ICC Statistics in final models
+                  
+|       | RsrchQ | CritDes | InitEDA | SelMeth | InterpRes | VisOrg | TxtOrg |
+|:-----:|:------:|:-------:|:-------:|:-------:|:---------:|:------:|:------:|
+| ICC   | 0.476  | 0.732   | 0.655   | 0.298   | 0.452     | 0.791  | 0.594  |
+
+Last, The vif does not suggest any muticollinearity
+```{r}
+library(car) 
+vif(lmer.fit7)
+```
+
+
+## Appendix: Additional information about the data {#appendix-4}
+
+```{r}
+table(rating$Sex)
+```
+
+If appears that the number of female students is greater than male students. We might compare the gender distribution on each rubric
+
+```{r}
+ggplot(data = tall, aes(x= Rubric, y=Rating, fill= Sex))+
+  geom_boxplot()+
+  scale_fill_manual(values=c("black", "grey")) +
+  labs(title="Rating distribution on Select Method(s) by Gender")+
+  theme_bw()
+```
+
+It looks like the only difference between male and female student on the rating is select methods. Next, we take look in to Selmeth
+
+```{r}
+sel <- tall %>% 
+  filter(Rubric == "SelMeth") %>% 
+  group_by(Sex) %>% 
+  summarise(count = n(),
+            average = round(mean(Rating),3),
+            median = round(median(Rating),3),
+            SD = round(sd(Rating),3))
+```
+
+```{r}
+knitr::kable(sel)
+```
+
+Summary statistics for critique design
+```{r}
+sel2 <- tall %>% 
+  filter(Rubric == "CritDes") %>% 
+  group_by(Sex) %>% 
+  summarise(count = n(),
+            average = round(mean(Rating),3),
+            median = round(median(Rating),3),
+            SD = round(sd(Rating),3))
+```
+
+```{r}
+knitr::kable(sel2)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
